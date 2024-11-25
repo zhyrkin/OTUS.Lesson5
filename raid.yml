@@ -1,0 +1,37 @@
+---
+- name: Lesson 5
+  hosts: raid_host
+  gather_facts: false
+  become: true
+  become_user: root
+  become_method: sudo
+  
+
+  vars:
+    mountpoint: /mnt/test-raid
+    fail_disk: /dev/sdb
+    raid_index: 0
+    parts:
+      - { partname: part1, fstype: ext4, part_value: 2GiB,  end: 2GiB } 
+      - { partname: part2, fstype: ext4, part_value: 2GiB, start: 2GiB, end: 4GiB }
+      - { partname: part3, fstype: ext4, part_value: 2Gib, start: 4GiB, end: 6GiB }
+      - { partname: part4, fstype: ext4, part_value: 2Gib, start: 6GiB, end: 8GiB }
+      - { partname: part5, fstype: ext4, part_value: 2Gib, start: 8GiB, end: 10GiB }
+  roles:
+    - role: update_cache
+      tags: alwayl
+    - role: mdadm
+      vars: 
+      mdadm_arrays:
+        - number: '{{ raid_index }}'
+          level: 5
+          filesystem: ext4
+          mountpoint: '{{ mountpoint }}'
+          devices:
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+    - role: break_raid
+    - role: add_disk_to_raid
+    - role: create_partition

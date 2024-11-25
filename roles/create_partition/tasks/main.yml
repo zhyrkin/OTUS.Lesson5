@@ -1,0 +1,69 @@
+---
+#tasks file for create_partition
+- name: Read device information (always use unit when probing)
+  community.general.parted: device=/dev/md{{ raid_index }} unit=MiB
+  register: sdb_info
+
+- name: umount part
+  ansible.posix.mount:
+    path: '{{ mountpoint }}'
+    state: unmounted
+
+  
+- name: umount part
+  ansible.posix.mount:
+    path: '{{ mountpoint }}'
+    state: absent_from_fstab
+
+- name: Remove all partitions from disk
+  community.general.parted:
+    device: /dev/md{{ raid_index }}
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ sdb_info.partitions }}'
+
+
+- name: Create GPT part
+  community.general.parted:
+    device: /dev/md{{ raid_index }}
+    label: gpt
+    name: raid
+
+- name: create partitions
+  community.general.parted:
+    device: /dev/md{{ raid_index }}
+    state: present
+    label: gpt
+    part_type: extended
+    number: '{{ ansible_loop.index }}'
+    part_start: '{{ item.start | default("0%") }}'
+    part_end: '{{ item.end }}'
+  loop: "{{ parts }}"
+  loop_control:
+    extended: true
+
+- name: Create filesystem on parts
+  community.general.filesystem:
+    fstype: '{{ item.fstype }}'
+    dev: '/dev/md{{ raid_index }}p{{ ansible_loop.index }}'
+  loop: "{{ parts }}"
+  loop_control:
+    extended: true
+
+- name: create dir
+  ansible.builtin.file:
+    path: /mnt/{{ item.partname }}
+    state: directory
+    mode: '0644'
+  loop: "{{ parts }}"
+
+- name: mount new part
+  ansible.posix.mount:
+    path: /mnt/{{ item.partname }}
+    src: /dev/md{{ raid_index }}p{{ ansible_loop.index }}
+    fstype: ext4
+    state: mounted
+  loop: "{{ parts }}"
+  loop_control:
+    extended: true
+  notify: restart systemctl daemon

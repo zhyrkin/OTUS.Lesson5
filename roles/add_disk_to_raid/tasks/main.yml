@@ -1,0 +1,14 @@
+---
+# tasks file for break_raid
+
+- name: raid add disk
+  ansible.builtin.shell:
+    'mdadm /dev/md{{ raid_index }} --add {{ fail_disk }}'
+
+- name: Check raid health
+  ansible.builtin.shell:
+    'mdadm -D /dev/md0'
+  register: Check
+  retries: 10
+  delay: 10
+  until: Check.stdout.find("Rebuild") == -1
